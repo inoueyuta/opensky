@@ -52,7 +52,7 @@ import io.github.inoueyuta.opensky.model.ShowAirplaneInterface;
 import io.github.inoueyuta.opensky.model.ShowAirportInterface;
 import io.github.inoueyuta.opensky.model.ShowRouteInterface;
 
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnCameraIdleListener, ShowAirplaneInterface, ShowAirportInterface, ShowRouteInterface {
+public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnCameraIdleListener, GoogleMap.OnCameraMoveStartedListener, ShowAirplaneInterface, ShowAirportInterface, ShowRouteInterface {
     private GoogleMap mMap;
     private LocationManager locationManager;
     private LocationListener locationListener;
@@ -67,6 +67,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private Marker selectedAirplaneMarker;
     private List<Marker> airportMarkerArray = new ArrayList<Marker>();
     private Marker selectedAirportMarker;
+    private int cameraMoveReason;
     private HashMap<String, AirplaneState> airplaneStateHash = new HashMap<String, AirplaneState>();
     private Polyline departureAirportRoute;
     private Polyline arrivalAirportRoute;
@@ -138,6 +139,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         });
         mMap.setOnCameraIdleListener(this);
+        mMap.setOnCameraMoveStartedListener(this);
         mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
             @Override
             public boolean onMarkerClick(Marker marker) {
@@ -148,10 +150,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     selectedAirplaneManager.setAirplane(state);
                     selectedAirplaneManager.getDepartureAndArrivalAirport();
                     selectedAirplaneMarker = marker;
-                    selectedAirportMarker = null;
                 } else if(markerAirportTagName.equals(marker.getTag())) {
                     selectedAirportMarker = marker;
-                    selectedAirplaneMarker = null;
                 }
                 // タップ時にカメラを移動する（デフォルト）
                 return false;
@@ -218,20 +218,25 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     @Override
     public void onCameraIdle() {
-        if( selectedAirplaneMarker != null) {
+        if( cameraMoveReason == GoogleMap.OnCameraMoveStartedListener.REASON_API_ANIMATION && selectedAirplaneMarker != null && selectedAirplaneMarker.isInfoWindowShown()) {
             //飛行機を選択したときに表示される情報を10秒間は表示させたいため
             startGetAirplaneStateTimer(10000);
         } else {
             //ユーザがマップ操作時の負荷軽減のため待つ
             startGetAirplaneStateTimer(1000);
         }
-        if( selectedAirportMarker != null) {
+        if( cameraMoveReason == GoogleMap.OnCameraMoveStartedListener.REASON_API_ANIMATION && selectedAirportMarker != null && selectedAirportMarker.isInfoWindowShown()) {
             //飛行場を選択したときに表示される情報を3秒間は表示させたいため
             startGetAirportInfoTimer(3000);
         } else {
             //ユーザがマップ操作時の負荷軽減のため待つ
             startGetAirportInfoTimer(1000);
         }
+    }
+
+    @Override
+    public void onCameraMoveStarted(int reason) {
+        cameraMoveReason = reason;
     }
 
     private void startGetAirplaneStateTimer(int delayMilliSecondTime) {
@@ -351,7 +356,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void showRoute() {
         if(selectedAirplaneManager.existDepartureAndArrivalAirport()) {
-            if(selectedAirplaneMarker != null) {
+            if(selectedAirplaneMarker != null && selectedAirplaneMarker.isInfoWindowShown()) {
                 selectedAirplaneMarker.setSnippet(selectedAirplaneManager.getSnippet());
                 selectedAirplaneMarker.hideInfoWindow();
                 selectedAirplaneMarker.showInfoWindow();
