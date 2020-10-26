@@ -35,6 +35,7 @@ import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.maps.model.VisibleRegion;
 
+import java.security.Policy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -69,8 +70,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private Marker selectedAirportMarker;
     private int cameraMoveReason;
     private HashMap<String, AirplaneState> airplaneStateHash = new HashMap<String, AirplaneState>();
-    private Polyline departureAirportRoute;
-    private Polyline arrivalAirportRoute;
+    private List<Polyline> departureAirportRouteArray = new ArrayList<Polyline>();
+    private List<Polyline> arrivalAirportRouteArray = new ArrayList<Polyline>();
 
     private static final String markerAirplaneTagName = "airplane";
     private static final String markerAirportTagName = "airport";
@@ -206,8 +207,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public void clear() {
         mMap.clear();
-        arrivalAirportRoute = null;
-        departureAirportRoute = null;
+        arrivalAirportRouteArray.clear();
+        departureAirportRouteArray.clear();
         airportMarkerArray.clear();
         airplaneMarkerArray.clear();
         airplaneStateHash.clear();
@@ -302,8 +303,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             Marker marker = mMap.addMarker(options);
             marker.setTag(markerAirplaneTagName);
             if(selectedAirplaneManager.existDepartureAndArrivalAirport() && selectedAirplaneManager.getAirplaneState().getIcao24().equals(info.getIcao24())) {
-                arrivalAirportRoute = mMap.addPolyline(new PolylineOptions().geodesic(false).color(Color.YELLOW).width(10).pattern(Arrays.<PatternItem>asList(new Dash(30), new Gap(20))).add(info.getLocation(), selectedAirplaneManager.getArrivalAirport().getLocation()));
-                departureAirportRoute = mMap.addPolyline(new PolylineOptions().geodesic(false).color(Color.YELLOW).width(10).add(info.getLocation(), selectedAirplaneManager.getDepartureAirport().getLocation()));
+                Polyline arrivalAirportRoute = mMap.addPolyline(new PolylineOptions().geodesic(false).color(Color.YELLOW).width(10).pattern(Arrays.<PatternItem>asList(new Dash(30), new Gap(20))).add(info.getLocation(), selectedAirplaneManager.getArrivalAirport().getLocation()));
+                arrivalAirportRouteArray.add(arrivalAirportRoute);
+                Polyline departureAirportRoute = mMap.addPolyline(new PolylineOptions().geodesic(false).color(Color.YELLOW).width(10).add(info.getLocation(), selectedAirplaneManager.getDepartureAirport().getLocation()));
+                departureAirportRouteArray.add(departureAirportRoute);
             }
             airplaneStateHash.put(marker.getId(), info);
             airplaneMarkerArray.add(marker);
@@ -361,19 +364,21 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 selectedAirplaneMarker.hideInfoWindow();
                 selectedAirplaneMarker.showInfoWindow();
             }
-            arrivalAirportRoute = mMap.addPolyline(new PolylineOptions().geodesic(false).color(Color.YELLOW).width(10).pattern(Arrays.<PatternItem>asList(new Dash(30), new Gap(20))).add(selectedAirplaneManager.getAirplaneState().getLocation(), selectedAirplaneManager.getArrivalAirport().getLocation()));
-            departureAirportRoute = mMap.addPolyline(new PolylineOptions().geodesic(false).color(Color.YELLOW).width(10).add(selectedAirplaneManager.getAirplaneState().getLocation(), selectedAirplaneManager.getDepartureAirport().getLocation()));
+            Polyline arrivalAirportRoute = mMap.addPolyline(new PolylineOptions().geodesic(false).color(Color.YELLOW).width(10).pattern(Arrays.<PatternItem>asList(new Dash(30), new Gap(20))).add(selectedAirplaneManager.getAirplaneState().getLocation(), selectedAirplaneManager.getArrivalAirport().getLocation()));
+            arrivalAirportRouteArray.add(arrivalAirportRoute);
+            Polyline departureAirportRoute = mMap.addPolyline(new PolylineOptions().geodesic(false).color(Color.YELLOW).width(10).add(selectedAirplaneManager.getAirplaneState().getLocation(), selectedAirplaneManager.getDepartureAirport().getLocation()));
+            departureAirportRouteArray.add(departureAirportRoute);
         }
     }
 
     private void clearRoute() {
-        if(arrivalAirportRoute != null) {
-            arrivalAirportRoute.remove();
-            arrivalAirportRoute = null;
+        for (Polyline route: arrivalAirportRouteArray) {
+            route.remove();
         }
-        if(departureAirportRoute != null) {
-            departureAirportRoute.remove();
-            departureAirportRoute = null;
+        arrivalAirportRouteArray.clear();
+        for (Polyline route: departureAirportRouteArray) {
+            route.remove();
         }
+        departureAirportRouteArray.clear();
     }
 }
