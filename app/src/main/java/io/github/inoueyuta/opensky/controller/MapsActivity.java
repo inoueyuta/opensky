@@ -35,7 +35,6 @@ import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.maps.model.VisibleRegion;
 
-import java.security.Policy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -58,7 +57,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private LocationManager locationManager;
     private LocationListener locationListener;
     private Timer getAirPlaneStateTimer;
-    private Timer getAirplaceInfoTimer;
+    private Timer getAirportInfoTimer;
 
     private AirplaneManager airplaneManager;
     private AirportManager airportManager;
@@ -75,6 +74,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private static final String markerAirplaneTagName = "airplane";
     private static final String markerAirportTagName = "airport";
+    private boolean activeOnInfoWindowCloseListener = true;
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
@@ -144,7 +144,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
             @Override
             public boolean onMarkerClick(Marker marker) {
+                //飛行機と空港クリック時にinfowindow表示のため、更新を停止する
                 if(markerAirplaneTagName.equals(marker.getTag())) {
+                    if (getAirPlaneStateTimer != null) {
+                        getAirPlaneStateTimer.cancel();
+                    }
                     clearRoute();
                     selectedAirplaneManager.clear();
                     AirplaneState state = airplaneStateHash.get(marker.getId());
@@ -152,10 +156,27 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     selectedAirplaneManager.getDepartureAndArrivalAirport();
                     selectedAirplaneMarker = marker;
                 } else if(markerAirportTagName.equals(marker.getTag())) {
+                    if (getAirportInfoTimer != null) {
+                        getAirportInfoTimer.cancel();
+                    }
                     selectedAirportMarker = marker;
                 }
                 // タップ時にカメラを移動する（デフォルト）
                 return false;
+            }
+        });
+        // infowindow閉じた時に飛行機や空港を更新する。ただし、飛行機や空港の再表示時の更新を防ぐために更新を遅らせる。
+        mMap.setOnInfoWindowCloseListener(new GoogleMap.OnInfoWindowCloseListener() {
+            @Override
+            public void onInfoWindowClose(Marker marker) {
+                if(markerAirplaneTagName.equals(marker.getTag())) {
+                    //infowindowの出発/到着の更新時は除く
+                    if(activeOnInfoWindowCloseListener) {
+                        startGetAirplaneStateTimer(100);
+                    }
+                } else if(markerAirportTagName.equals(marker.getTag())) {
+                    startGetAirportInfoTimer(100);
+                }
             }
         });
         //現在地ボタン押下時
@@ -219,19 +240,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     @Override
     public void onCameraIdle() {
-        if( cameraMoveReason == GoogleMap.OnCameraMoveStartedListener.REASON_API_ANIMATION && selectedAirplaneMarker != null && selectedAirplaneMarker.isInfoWindowShown()) {
-            //飛行機を選択したときに表示される情報を10秒間は表示させたいため
-            startGetAirplaneStateTimer(10000);
-        } else {
-            //ユーザがマップ操作時の負荷軽減のため待つ
-            startGetAirplaneStateTimer(1000);
+        //マーカークリック時以外は飛行機や空港を更新する
+        if( cameraMoveReason != GoogleMap.OnCameraMoveStartedListener.REASON_API_ANIMATION ||
+                (cameraMoveReason == GoogleMap.OnCameraMoveStartedListener.REASON_API_ANIMATION && selectedAirportMarker != null && selectedAirportMarker.isInfoWindowShown()) ) {
+            startGetAirplaneStateTimer(0);
         }
-        if( cameraMoveReason == GoogleMap.OnCameraMoveStartedListener.REASON_API_ANIMATION && selectedAirportMarker != null && selectedAirportMarker.isInfoWindowShown()) {
-            //飛行場を選択したときに表示される情報を3秒間は表示させたいため
-            startGetAirportInfoTimer(3000);
-        } else {
-            //ユーザがマップ操作時の負荷軽減のため待つ
-            startGetAirportInfoTimer(1000);
+        if( cameraMoveReason != GoogleMap.OnCameraMoveStartedListener.REASON_API_ANIMATION ||
+                (cameraMoveReason == GoogleMap.OnCameraMoveStartedListener.REASON_API_ANIMATION && selectedAirplaneMarker != null && selectedAirplaneMarker.isInfoWindowShown()) ) {
+            startGetAirportInfoTimer(0);
         }
     }
 
@@ -271,11 +287,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         final double leftLongitude = vRegion.latLngBounds.southwest.longitude;
         final double rightLongitude = vRegion.latLngBounds.northeast.longitude;
 
-        if (getAirplaceInfoTimer != null) {
-            getAirplaceInfoTimer.cancel();
+        if (getAirportInfoTimer != null) {
+            getAirportInfoTimer.cancel();
         }
-        getAirplaceInfoTimer = new Timer();
-        getAirplaceInfoTimer.schedule(new TimerTask() {
+        getAirportInfoTimer = new Timer();
+        getAirportInfoTimer.schedule(new TimerTask() {
             @Override
             public void run() {
                 runOnUiThread(new Runnable() {
@@ -361,8 +377,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         if(selectedAirplaneManager.existDepartureAndArrivalAirport()) {
             if(selectedAirplaneMarker != null && selectedAirplaneMarker.isInfoWindowShown()) {
                 selectedAirplaneMarker.setSnippet(selectedAirplaneManager.getSnippet());
+                activeOnInfoWindowCloseListener = false;
                 selectedAirplaneMarker.hideInfoWindow();
                 selectedAirplaneMarker.showInfoWindow();
+                activeOnInfoWindowCloseListener = true;
             }
             Polyline arrivalAirportRoute = mMap.addPolyline(new PolylineOptions().geodesic(false).color(Color.YELLOW).width(10).pattern(Arrays.<PatternItem>asList(new Dash(30), new Gap(20))).add(selectedAirplaneManager.getAirplaneState().getLocation(), selectedAirplaneManager.getArrivalAirport().getLocation()));
             arrivalAirportRouteArray.add(arrivalAirportRoute);
