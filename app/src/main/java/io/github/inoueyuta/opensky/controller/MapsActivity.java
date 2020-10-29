@@ -14,6 +14,8 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.text.Html;
+import android.text.method.LinkMovementMethod;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -103,6 +105,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         airportManager.showAirportInterface = this;
         selectedAirplaneManager = new SelectedAirplaneManager();
         selectedAirplaneManager.showRouteInterface = this;
+        addPrivacyPolicyLink();
+    }
+
+    private void addPrivacyPolicyLink() {
+        TextView policy = (TextView)findViewById(R.id.policy);
+        policy.setMovementMethod(LinkMovementMethod.getInstance());
+        CharSequence policyString = Html.fromHtml("<a href=\"https://inoueyuta.github.io/opensky/privacy-policy\">Privacy Policy</a>");
+        policy.setText(policyString);
     }
 
     @Override
